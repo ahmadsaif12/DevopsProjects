@@ -1,0 +1,11 @@
+com/example/backend/dto/CreateStudentRequest.class
+com/example/backend/model/Student.class
+com/example/backend/exception/ApiError.class
+com/example/backend/dto/StudentResponse.class
+com/example/backend/controller/StudentController.class
+com/example/backend/config/WebConfig.class
+com/example/backend/BackendApplication.class
+com/example/backend/service/StudentService.class
+com/example/backend/dto/UpdateStudentRequest.class
+com/example/backend/repository/StudentRepository.class
+com/example/backend/exception/GlobalExceptionHandler.class
