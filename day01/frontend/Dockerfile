@@ -1,8 +1,10 @@
-FROM node:14-alpine
-workdir /app
-COPY package.json ./
-RUN npm install
-COPY . .   
+FROM node:18-alpine
+WORKDIR /app
 
-ExPOSE 5173
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+EXPOSE 5173
+CMD ["npm","run","dev","--","--host","0.0.0.0","--port","5173"]
