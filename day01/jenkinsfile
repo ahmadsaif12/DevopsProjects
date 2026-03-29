@@ -9,16 +9,12 @@ pipeline {
     stages {
         stage('Verify Docker') {
             steps {
-                sh '''
-                which docker
-                docker --version
-                '''
+                sh 'docker --version || true'
             }
         }
         stage('Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/ahmadsaif12/DevopsProjects.git'
+                git branch: 'main', url: 'https://github.com/ahmadsaif12/DevopsProjects.git'
             }
         }
         stage('Build Backend JAR') {
@@ -31,23 +27,21 @@ pipeline {
         stage('Build & Push Docker Images') {
             steps {
                 sh '''
-                echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login \
-                  -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
-                docker build --platform linux/amd64 \
-                  -t $BACKEND_IMAGE:latest ./backend
-                docker build --platform linux/amd64 \
-                  -t $FRONTEND_IMAGE:latest ./frontend
-                docker push $BACKEND_IMAGE:latest
-                docker push $FRONTEND_IMAGE:latest
+                    echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login \
+                      -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
+                    docker build --platform linux/amd64 -t $BACKEND_IMAGE:latest ./backend
+                    docker build --platform linux/amd64 -t $FRONTEND_IMAGE:latest ./frontend
+                    docker push $BACKEND_IMAGE:latest
+                    docker push $FRONTEND_IMAGE:latest
                 '''
             }
         }
         stage('Cleanup Docker Images') {
             steps {
                 sh '''
-                docker rmi $BACKEND_IMAGE:latest || true
-                docker rmi $FRONTEND_IMAGE:latest || true
-                docker system prune -f
+                    docker rmi $BACKEND_IMAGE:latest || true
+                    docker rmi $FRONTEND_IMAGE:latest || true
+                    docker system prune -f || true
                 '''
             }
         }
@@ -56,8 +50,7 @@ pipeline {
                 sshagent(['ec2-ssh-key']) {
                     dir('ansible') {
                         sh '''
-                        ansible --version
-                        ansible-playbook -i inventory playbook.yml
+                            ansible-playbook -i inventory.ini playbook.yml
                         '''
                     }
                 }
@@ -65,14 +58,8 @@ pipeline {
         }
     }
     post {
-        always {
-            sh 'docker logout || true'   
-        }
-        success {
-            echo '🚀 CI/CD Pipeline completed successfully!'
-        }
-        failure {
-            echo '❌ Pipeline failed. Check logs.'
-        }
+        always { sh 'docker logout || true' }
+        success { echo '🚀 CI/CD Pipeline completed successfully!' }
+        failure { echo '❌ Pipeline failed. Check logs.' }
     }
 }

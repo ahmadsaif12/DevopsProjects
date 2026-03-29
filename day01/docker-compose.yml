@@ -1,40 +1,6 @@
 version: "3.9"
+
 services:
-  # --- Backend ---
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: devops-backend
-    ports:
-      - "8080:8080"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/devopsdb
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=1234
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-    depends_on:
-      - db
-    restart: always
-    networks:
-      - app-network
-
-  # --- Frontend ---
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: devops-frontend
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_URL=http://34.234.170.51:8080 
-    depends_on:
-      - backend
-    restart: always
-    networks:
-      - app-network
-
   # --- MySQL Database ---
   db:
     image: mysql:8.0
@@ -46,13 +12,45 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
-      - "3306:3306"    
+      - "3306:3306"
     networks:
       - app-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
+
+  # --- Backend ---
+  backend:
+    image: saifahmad123/devops01-backend:latest
+    container_name: devops-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/devopsdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=1234
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - app-network
+
+  # --- Frontend ---
+  frontend:
+    image: saifahmad123/devops01-frontend:latest
+    container_name: devops-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://98.86.161.31:8080
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - app-network
 
 networks:
   app-network:
