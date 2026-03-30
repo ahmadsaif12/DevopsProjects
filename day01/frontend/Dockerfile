@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
@@ -7,7 +7,17 @@ RUN npm ci
 
 COPY . .
 
-ENV VITE_API_URL=http://98.86.161.31:8080
+ARG VITE_API_URL=http://3.236.149.104:8081
+ENV VITE_API_URL=$VITE_API_URL
 
-EXPOSE 5173
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+RUN npm run build
+
+FROM nginx:alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,7 +1,7 @@
 version: "3.9"
 
 services:
-  # --- MySQL Database ---
+  
   db:
     image: mysql:8.0
     container_name: devops-mysql
@@ -20,12 +20,11 @@ services:
       timeout: 20s
       retries: 10
 
-  # --- Backend ---
   backend:
     image: saifahmad123/devops01-backend:latest
     container_name: devops-backend
     ports:
-      - "8080:8080"
+      - "8081:8080"    
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/devopsdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       - SPRING_DATASOURCE_USERNAME=root
@@ -43,9 +42,9 @@ services:
     image: saifahmad123/devops01-frontend:latest
     container_name: devops-frontend
     ports:
-      - "5173:5173"
+      - "3000:80"       
     environment:
-      - VITE_API_URL=http://98.86.161.31:8080
+      - VITE_API_URL=http://3.236.149.104:8081
     depends_on:
       - backend
     restart: always

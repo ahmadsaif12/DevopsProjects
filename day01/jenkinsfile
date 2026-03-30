@@ -1,65 +1,117 @@
 pipeline {
     agent any
+
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
-        FRONTEND_IMAGE = "saifahmad123/devops01-frontend"
-        BACKEND_IMAGE  = "saifahmad123/devops01-backend"
-        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        FRONTEND_IMAGE        = "saifahmad123/devops01-frontend"
+        BACKEND_IMAGE         = "saifahmad123/devops01-backend"
+        IMAGE_TAG             = "${env.BUILD_NUMBER}"
     }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
     stages {
-        stage('Verify Docker') {
+
+        stage('Verify Tools') {
             steps {
-                sh 'docker --version || true'
+                sh '''
+                    echo "=== Docker ===" && docker --version
+                    echo "=== Ansible ===" && ansible --version
+                    echo "=== Java ===" && java -version
+                '''
             }
         }
+
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/ahmadsaif12/DevopsProjects.git'
+                git branch: 'main',
+                    url: 'https://github.com/ahmadsaif12/DevopsProjects.git'
+                    // If private repo, add:
+                    // credentialsId: 'github-creds'
             }
         }
+
         stage('Build Backend JAR') {
             steps {
                 dir('backend') {
-                    sh './mvnw clean package -DskipTests'
+                    sh '''
+                        chmod +x ./mvnw
+                        ./mvnw clean package -DskipTests
+                    '''
                 }
             }
         }
-        stage('Build & Push Docker Images') {
+
+        stage('Build Docker Images') {
+            steps {
+                sh '''
+                    docker build -t $BACKEND_IMAGE:$IMAGE_TAG  -t $BACKEND_IMAGE:latest ./backend
+                    docker build -t $FRONTEND_IMAGE:$IMAGE_TAG -t $FRONTEND_IMAGE:latest ./frontend
+                '''
+            }
+        }
+
+        stage('Push Docker Images') {
             steps {
                 sh '''
                     echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login \
-                      -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
-                    docker build --platform linux/amd64 -t $BACKEND_IMAGE:latest ./backend
-                    docker build --platform linux/amd64 -t $FRONTEND_IMAGE:latest ./frontend
+                        -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
+
+                    docker push $BACKEND_IMAGE:$IMAGE_TAG
                     docker push $BACKEND_IMAGE:latest
+
+                    docker push $FRONTEND_IMAGE:$IMAGE_TAG
                     docker push $FRONTEND_IMAGE:latest
                 '''
             }
         }
+
         stage('Cleanup Docker Images') {
             steps {
                 sh '''
-                    docker rmi $BACKEND_IMAGE:latest || true
-                    docker rmi $FRONTEND_IMAGE:latest || true
-                    docker system prune -f || true
+                    docker rmi $BACKEND_IMAGE:$IMAGE_TAG  || true
+                    docker rmi $BACKEND_IMAGE:latest      || true
+                    docker rmi $FRONTEND_IMAGE:$IMAGE_TAG || true
+                    docker rmi $FRONTEND_IMAGE:latest     || true
+                    docker system prune -f                || true
                 '''
             }
         }
-        stage('Deploy to EC2 using Ansible') {
+
+        stage('Deploy to EC2 via Ansible') {
             steps {
                 sshagent(['ec2-ssh-key']) {
                     dir('ansible') {
                         sh '''
-                            ansible-playbook -i inventory.ini playbook.yml
+                            # Disable strict host key checking so Ansible
+                            # doesn't hang on first-time SSH fingerprint prompt
+                            export ANSIBLE_HOST_KEY_CHECKING=False
+
+                            ansible-playbook \
+                                -i inventory.ini \
+                                playbook.yml \
+                                --extra-vars "image_tag=${IMAGE_TAG}"
                         '''
                     }
                 }
             }
         }
     }
+
     post {
-        always { sh 'docker logout || true' }
-        success { echo '🚀 CI/CD Pipeline completed successfully!' }
-        failure { echo '❌ Pipeline failed. Check logs.' }
+        always {
+            sh 'docker logout || true'
+            cleanWs()  
+        }
+        success {
+            echo "🚀 Pipeline succeeded! Build #${env.BUILD_NUMBER} deployed."
+        }
+        failure {
+            echo "❌ Pipeline failed at stage. Check console logs above."
+        }
     }
 }
