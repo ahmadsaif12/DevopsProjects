@@ -5,23 +5,16 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
         FRONTEND_IMAGE        = "saifahmad123/devops01-frontend"
         BACKEND_IMAGE         = "saifahmad123/devops01-backend"
-        IMAGE_TAG             = "${env.BUILD_NUMBER}"
-    }
-
-    options {
-        timeout(time: 30, unit: 'MINUTES')
-        disableConcurrentBuilds()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
+        PATH                  = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
     }
 
     stages {
 
-        stage('Verify Tools') {
+        stage('Verify Docker') {
             steps {
                 sh '''
-                    echo "=== Docker ===" && docker --version
-                    echo "=== Ansible ===" && ansible --version
-                    echo "=== Java ===" && java -version
+                which docker
+                docker --version
                 '''
             }
         }
@@ -36,34 +29,24 @@ pipeline {
         stage('Build Backend JAR') {
             steps {
                 dir('backend') {
-                    sh '''
-                        chmod +x ./mvnw
-                        ./mvnw clean package -DskipTests
-                    '''
+                    sh './mvnw clean package -DskipTests'
                 }
             }
         }
 
-        stage('Build Docker Images') {
+        stage('Build & Push Docker Images') {
             steps {
                 sh '''
-                    docker build -t $BACKEND_IMAGE:$IMAGE_TAG -t $BACKEND_IMAGE:latest ./backend
-                    docker build -t $FRONTEND_IMAGE:$IMAGE_TAG -t $FRONTEND_IMAGE:latest ./frontend
-                '''
-            }
-        }
+                echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login \
+                    -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
 
-        stage('Push Docker Images') {
-            steps {
-                sh '''
-                    echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login \
-                        -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
+                docker build --platform linux/amd64 \
+                    -t $BACKEND_IMAGE:latest ./backend
+                docker build --platform linux/amd64 \
+                    -t $FRONTEND_IMAGE:latest ./frontend
 
-                    docker push $BACKEND_IMAGE:$IMAGE_TAG
-                    docker push $BACKEND_IMAGE:latest
-
-                    docker push $FRONTEND_IMAGE:$IMAGE_TAG
-                    docker push $FRONTEND_IMAGE:latest
+                docker push $BACKEND_IMAGE:latest
+                docker push $FRONTEND_IMAGE:latest
                 '''
             }
         }
@@ -71,22 +54,21 @@ pipeline {
         stage('Cleanup Docker Images') {
             steps {
                 sh '''
-                    docker rmi $BACKEND_IMAGE:$IMAGE_TAG || true
-                    docker rmi $BACKEND_IMAGE:latest || true
-                    docker rmi $FRONTEND_IMAGE:$IMAGE_TAG || true
-                    docker rmi $FRONTEND_IMAGE:latest || true
-                    docker system prune -f || true
+                docker rmi $BACKEND_IMAGE:latest || true
+                docker rmi $FRONTEND_IMAGE:latest || true
+                docker system prune -f
                 '''
             }
         }
 
-        stage('Deploy to EC2 via Ansible') {
+        stage('Deploy to EC2 using Ansible') {
             steps {
                 sshagent(['ec2-ssh-key']) {
                     dir('ansible') {
                         sh '''
-                            export ANSIBLE_HOST_KEY_CHECKING=False
-                            ansible-playbook -i inventory.ini playbook.yml --extra-vars "image_tag=${IMAGE_TAG}"
+                        export ANSIBLE_HOST_KEY_CHECKING=False
+                        ansible --version
+                        ansible-playbook -i inventory.ini playbook.yml
                         '''
                     }
                 }
@@ -97,13 +79,12 @@ pipeline {
     post {
         always {
             sh 'docker logout || true'
-            cleanWs()
         }
         success {
-            echo "🚀 Pipeline succeeded! Build #${env.BUILD_NUMBER} deployed."
+            echo '🚀 CI/CD Pipeline completed successfully!'
         }
         failure {
-            echo "❌ Pipeline failed. Check console logs."
+            echo '❌ Pipeline failed. Check logs.'
         }
     }
 }
