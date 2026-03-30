@@ -37,7 +37,6 @@ services:
     networks:
       - app-network
 
-  # --- Frontend ---
   frontend:
     image: saifahmad123/devops01-frontend:latest
     container_name: devops-frontend

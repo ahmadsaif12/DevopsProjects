@@ -30,8 +30,6 @@ pipeline {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/ahmadsaif12/DevopsProjects.git'
-                    // If private repo, add:
-                    // credentialsId: 'github-creds'
             }
         }
 
@@ -49,7 +47,7 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 sh '''
-                    docker build -t $BACKEND_IMAGE:$IMAGE_TAG  -t $BACKEND_IMAGE:latest ./backend
+                    docker build -t $BACKEND_IMAGE:$IMAGE_TAG -t $BACKEND_IMAGE:latest ./backend
                     docker build -t $FRONTEND_IMAGE:$IMAGE_TAG -t $FRONTEND_IMAGE:latest ./frontend
                 '''
             }
@@ -73,11 +71,11 @@ pipeline {
         stage('Cleanup Docker Images') {
             steps {
                 sh '''
-                    docker rmi $BACKEND_IMAGE:$IMAGE_TAG  || true
-                    docker rmi $BACKEND_IMAGE:latest      || true
+                    docker rmi $BACKEND_IMAGE:$IMAGE_TAG || true
+                    docker rmi $BACKEND_IMAGE:latest || true
                     docker rmi $FRONTEND_IMAGE:$IMAGE_TAG || true
-                    docker rmi $FRONTEND_IMAGE:latest     || true
-                    docker system prune -f                || true
+                    docker rmi $FRONTEND_IMAGE:latest || true
+                    docker system prune -f || true
                 '''
             }
         }
@@ -87,14 +85,8 @@ pipeline {
                 sshagent(['ec2-ssh-key']) {
                     dir('ansible') {
                         sh '''
-                            # Disable strict host key checking so Ansible
-                            # doesn't hang on first-time SSH fingerprint prompt
                             export ANSIBLE_HOST_KEY_CHECKING=False
-
-                            ansible-playbook \
-                                -i inventory.ini \
-                                playbook.yml \
-                                --extra-vars "image_tag=${IMAGE_TAG}"
+                            ansible-playbook -i inventory.ini playbook.yml --extra-vars "image_tag=${IMAGE_TAG}"
                         '''
                     }
                 }
@@ -105,13 +97,13 @@ pipeline {
     post {
         always {
             sh 'docker logout || true'
-            cleanWs()  
+            cleanWs()
         }
         success {
             echo "🚀 Pipeline succeeded! Build #${env.BUILD_NUMBER} deployed."
         }
         failure {
-            echo "❌ Pipeline failed at stage. Check console logs above."
+            echo "❌ Pipeline failed. Check console logs."
         }
     }
 }

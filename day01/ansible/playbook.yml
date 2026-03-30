@@ -1,11 +1,9 @@
-- name: Deploy app using Docker Compose with Jenkins
+- name: Deploy app using Docker Compose
   hosts: web
   become: true
 
   vars:
     app_dir: /home/ubuntu/app
-    jenkins_port: 8080
-    jenkins_home: /var/lib/jenkins
 
   tasks:
     - name: Update apt cache
@@ -28,11 +26,16 @@
           - curl
           - gnupg
           - lsb-release
-          - docker.io
-          - docker-compose
+          - software-properties-common
+          - openjdk-17-jdk
         state: present
 
-    - name: Ensure Docker is running
+    - name: Install Docker using official script
+      shell: curl -fsSL https://get.docker.com | sh
+      args:
+        executable: /bin/bash
+
+    - name: Ensure Docker service is running
       service:
         name: docker
         state: started
@@ -44,63 +47,6 @@
         groups: docker
         append: yes
 
-   
-    - name: Install Java (Jenkins dependency)
-      apt:
-        name:
-          - openjdk-17-jdk
-        state: present
-        update_cache: yes
-
-    - name: Add Jenkins GPG key
-      get_url:
-        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
-        dest: /usr/share/keyrings/jenkins-keyring.asc
-        mode: "0644"
-
-    - name: Add Jenkins apt repository
-      apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
-        state: present
-        filename: jenkins
-
-    - name: Update apt cache after adding Jenkins repo
-      apt:
-        update_cache: yes
-
-    - name: Install Jenkins
-      apt:
-        name: jenkins
-        state: present
-
-    - name: Add jenkins user to docker group
-      user:
-        name: jenkins
-        groups: docker
-        append: yes
-
-    - name: Ensure Jenkins is started and enabled
-      service:
-        name: jenkins
-        state: started
-        enabled: true
-
-    - name: Wait for Jenkins to start up
-      wait_for:
-        port: "{{ jenkins_port }}"
-        delay: 15
-        timeout: 120
-
-    - name: Fetch Jenkins initial admin password
-      command: cat /var/lib/jenkins/secrets/initialAdminPassword
-      register: jenkins_init_password
-      changed_when: false
-
-    - name: Display Jenkins initial admin password
-      debug:
-        msg: "Jenkins Initial Admin Password: {{ jenkins_init_password.stdout }}"
-
-  
     - name: Create application directory
       file:
         path: "{{ app_dir }}"
